@@ -7,6 +7,8 @@
 
 #define DOOR_TRIGGER_PIN D1 //I'm using D1 cause it is LOW at boot, I don't want to trigger the door each time the ESP is rebooted.
 
+#define BAT_LEVEL_SENSOR A0
+
 #define WIFI_SSID "Burton"
 #define WIFI_PSK  "Takeachance01"
 
@@ -43,6 +45,32 @@ void handleTrigger() {
   server.send(201);
 }
 
+void handleGetBatLevel() {
+  char data[100];
+  float ret_bat = analogRead(BAT_LEVEL_SENSOR);
+  float cal_per = 0;
+  int com_per = 0;
+
+  cal_per = ret_bat / 1023;
+
+  if (ret_bat > 1000)
+    com_per = 100;
+  else if (ret_bat > 950)
+    com_per = 85;
+  else if (ret_bat > 900)
+    com_per = 75;
+  else if (ret_bat > 850)
+    com_per = 50;
+  else if (ret_bat > 800)
+    com_per = 30;
+  else
+    com_per = 10;
+
+  sprintf(data, "{\"bat_level_raw\": \"%f\", \"bat_level_calculated_percent\": \"%f\", \"bat_level_computed_percent\": \"%d\"}", ret_bat, cal_per, com_per);
+  
+  server.send(200, "application/json", data);
+}
+
 void handleNotFound() {
   String message = "File Not Found\n\n";
   message += "URI: ";
@@ -61,10 +89,12 @@ void handleNotFound() {
 void setup() {
 
   pinMode(DOOR_TRIGGER_PIN, OUTPUT);
+  pinMode(BAT_LEVEL_SENSOR, INPUT);
   digitalWrite(DOOR_TRIGGER_PIN, LOW);
   
   Serial.begin(115200);
   Serial.println("Booting");
+  
   
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -129,6 +159,7 @@ void setup() {
 
   server.on("/", handleRoot);
   server.on("/trigger", handleTrigger);
+  server.on("/stats/bat", handleGetBatLevel);
   server.onNotFound(handleNotFound);
   server.begin();
   
@@ -139,5 +170,5 @@ void loop() {
   ArduinoOTA.handle();
   server.handleClient();
   MDNS.update();
-
+  delay(500);
 }
